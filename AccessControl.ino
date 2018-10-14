@@ -18,13 +18,13 @@
 #include <WebSockets.h>
 
 // Editable config values.
-const char* ssid     = ""; // Wifi SSID
-const char* password = ""; // Wifi Password
-const char* host = ""; // Host URL
-const char* secret = ""; // Secret to talk to the Host on.
-const char* deviceName = "DOOR-TEST"; // Device name. DOOR-DoorName or INT-InterlockName
-const char* devicePassword = ""; // Password for OTA on device.
-const char* deviceType = "door"; // either interlock or door
+const char* ssid     = ""; // Wifi SSID 
+const char* password = ""; // Wifi Password 
+const char* host = ""; // Host URL 
+const char* secret = ""; // Secret to talk to the Host on. 
+const char* deviceName = "DOOR-TEST"; // Device name. DOOR-DoorName or INT-InterlockName 
+const char* devicePassword = ""; // Password for OTA on device. 
+const char* deviceType = "door"; // either interlock or door 
 int checkinRate = 60; // How many seconds between standard server checkins.
 int sessionCheckinRate = 60; // How many seconds between interlock session checkins.
 int contact = 0; // Set default switch state, 1 for doors that are permanantly powered/fail-open.
@@ -93,11 +93,16 @@ void ICACHE_RAM_ATTR checkIn() {
 }
 
 
-void ICACHE_RAM_ATTR checkInSession(String sessionGUID, String endPoint) {
+void ICACHE_RAM_ATTR checkInSession(String sessionGUID, uint32_t cardNo) {
   log("[SESSION] Session Heartbeat Begin.");
   // Delay to clear wifi buffer.
   delay(10);
-  String url = String(host) + "/api/" + deviceType + "/session/" + sessionGUID + "/" + endPoint + "/?secret=" + String(secret);
+  String url;
+  if (cardNo > 0) {
+    url = String(host) + "/api/" + deviceType + "/session/" + sessionGUID + "/end/" + cardNo + "/?secret=" + String(secret);
+  } else {
+    url = String(host) + "/api/" + deviceType + "/session/" + sessionGUID + "/heartbeat/?secret=" + String(secret);
+  }
   log("[SESSION] Get:" + String(url));
   client.begin(url);
 
@@ -158,7 +163,7 @@ void readTagInterlock() {
           // Turn off contact, detach timer and heartbeat one last time.
           toggleContact();
           heartbeatSession.detach();
-          checkInSession(sessionID, "end");
+          checkInSession(sessionID,cardId);
 
           // Update the user that swipe timeout has begun.
           statusLight('w');
@@ -172,7 +177,7 @@ void readTagInterlock() {
         // Turn off contact, detach timer and heartbeat one last time.
         toggleContact();
         heartbeatSession.detach();
-        checkInSession(sessionID, "end");
+        checkInSession(sessionID,cardId);
         // Update the user that swipe timeout has begun.
         statusLight('w');
         lastId = 0;
@@ -530,7 +535,7 @@ void loop()
     case 2:
       {
         delay(10);
-        checkInSession(sessionID, "heartbeat");
+        checkInSession(sessionID,0);
         triggerFlag = 0;
         delay(10);
         log("[DEBUG] Free Heap Size: " + String(ESP.getFreeHeap()));
