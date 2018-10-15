@@ -632,6 +632,10 @@ void getCache () {
         cacheFile.print(payload + '\n');
         cacheFile.close();
       }
+      // Pull hash from the response, store in string in RAM.
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject&root = jsonBuffer.parseObject(payload.substring(payload.indexOf('{'), payload.length()));
+      curCacheHash = root["authorised_tags_hash"].as<String>();
 
     }
   } else {
