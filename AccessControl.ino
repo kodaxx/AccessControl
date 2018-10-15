@@ -84,10 +84,21 @@ void ICACHE_RAM_ATTR checkIn() {
     if (httpCode == HTTP_CODE_OK) {
       String payload = client.getString();
       log("[CHECKIN] Server response: " + payload);
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject&root = jsonBuffer.parseObject(payload.substring(payload.indexOf('{'), payload.length()));
+      String serverCacheHash = root["hashOfTags"].as<String>();
+      if (serverCacheHash != curCacheHash) {
+        log("[CACHE] Cache hashes don't match, flagging update.");
+        triggerFlag = 3;
+      }
+      else {
+        triggerFlag = 0;
+      }
     }
   } else {
     log("[CHECKIN] Error: " + client.errorToString(httpCode));
     statusLight('y');
+    triggerFlag = 0;
   }
   client.end();
   // log("[CHECKIN] Checkin done.");
@@ -125,6 +136,7 @@ void ICACHE_RAM_ATTR checkInSession(String sessionGUID, uint32_t cardNo) {
   }
   client.end();
   log("[SESSION] Session Heartbeat Done.");
+  triggerFlag = 0;
   delay(10);
 }
 
@@ -555,7 +567,6 @@ void loop()
       {
         delay(10);
         checkIn();
-        triggerFlag = 0;
         delay(10);
         log("[DEBUG] Free Heap Size: " + String(ESP.getFreeHeap()));
         break;
@@ -564,13 +575,18 @@ void loop()
       {
         delay(10);
         checkInSession(sessionID, 0);
-        triggerFlag = 0;
         delay(10);
         log("[DEBUG] Free Heap Size: " + String(ESP.getFreeHeap()));
         break;
       }
-
-
+    case 3:
+      {
+        delay(10);
+        getCache();
+        delay(10);
+        triggerFlag = 0;
+        break;
+      }
   }
 
   // Yield for 10ms so we can then handle any wifi data.
