@@ -11,20 +11,21 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266WiFi.h>
 #include <ArduinoOTA.h>
+#include <FS.h>
 #include <WS2812FX.h>
 #include <ArduinoJson.h>
 #include <Ticker.h>
 #include <WebSocketsServer.h>
 #include <WebSockets.h>
 
-// Editable config values.
-const char* ssid     = ""; // Wifi SSID 
-const char* password = ""; // Wifi Password 
-const char* host = ""; // Host URL 
-const char* secret = ""; // Secret to talk to the Host on. 
-const char* deviceName = "DOOR-TEST"; // Device name. DOOR-DoorName or INT-InterlockName 
-const char* devicePassword = ""; // Password for OTA on device. 
-const char* deviceType = "door"; // either interlock or door 
+// Editable config values. 
+const char* ssid     = ""; // Wifi SSID  
+const char* password = ""; // Wifi Password  
+const char* host = ""; // Host URL  
+const char* secret = ""; // Secret to talk to the Host on.  
+const char* deviceName = "DOOR-TEST"; // Device name. DOOR-DoorName or INT-InterlockName  
+const char* devicePassword = ""; // Password for OTA on device.  
+const char* deviceType = "door"; // either interlock or door  
 int checkinRate = 60; // How many seconds between standard server checkins.
 int sessionCheckinRate = 60; // How many seconds between interlock session checkins.
 int contact = 0; // Set default switch state, 1 for doors that are permanantly powered/fail-open.
@@ -163,7 +164,7 @@ void readTagInterlock() {
           // Turn off contact, detach timer and heartbeat one last time.
           toggleContact();
           heartbeatSession.detach();
-          checkInSession(sessionID,cardId);
+          checkInSession(sessionID, cardId);
 
           // Update the user that swipe timeout has begun.
           statusLight('w');
@@ -177,7 +178,7 @@ void readTagInterlock() {
         // Turn off contact, detach timer and heartbeat one last time.
         toggleContact();
         heartbeatSession.detach();
-        checkInSession(sessionID,cardId);
+        checkInSession(sessionID, cardId);
         // Update the user that swipe timeout has begun.
         statusLight('w');
         lastId = 0;
@@ -505,6 +506,12 @@ void setup() {
   http.on("/checkin", []() {
     idleHeartBeatFlag();
   });
+  http.on("/getcache", []() {
+    getCache();
+  });
+  http.on("/printcache", []() {
+    printCache();
+  });
   http.on("/end", []() {
     if (deviceType == "interlock") {
       contact = 0;
@@ -516,6 +523,10 @@ void setup() {
   log("[SETUP] HTTP server started");
   heartbeat.attach(checkinRate, idleHeartBeatFlag);
   delay(10);
+  if (!SPIFFS.begin()) {
+    log("[STORAGE]Failed to mount file system");
+    return;
+  }
 }
 
 void loop()
@@ -535,7 +546,7 @@ void loop()
     case 2:
       {
         delay(10);
-        checkInSession(sessionID,0);
+        checkInSession(sessionID, 0);
         triggerFlag = 0;
         delay(10);
         log("[DEBUG] Free Heap Size: " + String(ESP.getFreeHeap()));
@@ -577,5 +588,56 @@ void loop()
   }
   delay(10);
 
+}
+
+void getCache () {
+  log("[CACHE] Acquiring cache.");
+  // Delay to clear wifi buffer.
+  delay(10);
+  String url = String(host) + "/api/" + deviceType + "/authorised/?secret=" + String(secret);
+  log("[CACHE] Get:" + String(url));
+  client.begin(url);
+
+  // Start http request.
+  int httpCode = client.GET();
+  // httpCode will be negative on error
+  if (httpCode > 0) {
+    // log("[SESSION] Code: " + String(httpCode));
+
+    // Checkin succeeded.
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = client.getString();
+      log("[CACHE] Server Response: " + payload);
+      File cacheFile = SPIFFS.open("/authorised.json", "w");
+      if (!cacheFile) {
+        log("[CACHE] Error opening authorised json file.");
+      } else {
+        cacheFile.print(payload + '\n');
+        cacheFile.close();
+      }
+
+    }
+  } else {
+    log("[CACHE] Error: " + client.errorToString(httpCode));
+  }
+  client.end();
+  log("[CACHE] Cache acquisition done.");
+  delay(10);
+}
+
+void printCache() {
+  String cacheContent;
+  File cacheFile = SPIFFS.open("/authorised.json", "r");
+  if (!cacheFile) {
+    cacheContent = "Error opening authorised json file.";
+  } else {
+    cacheContent = cacheFile.readStringUntil('\n');
+  }
+  cacheFile.close();
+
+  String message = "<html><head><title>" + String(deviceName) + " Cache</title></head>";
+  message += "<h2>Cache:</h2>";
+  message += cacheContent;
+  http.send(200, "text/html", message);
 }
 
