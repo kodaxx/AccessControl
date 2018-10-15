@@ -18,14 +18,14 @@
 #include <WebSocketsServer.h>
 #include <WebSockets.h>
 
-// Editable config values. 
-const char* ssid     = ""; // Wifi SSID  
-const char* password = ""; // Wifi Password  
-const char* host = ""; // Host URL  
-const char* secret = ""; // Secret to talk to the Host on.  
-const char* deviceName = "DOOR-TEST"; // Device name. DOOR-DoorName or INT-InterlockName  
-const char* devicePassword = ""; // Password for OTA on device.  
-const char* deviceType = "door"; // either interlock or door  
+// Editable config values.
+const char* ssid     = ""; // Wifi SSID
+const char* password = ""; // Wifi Password
+const char* host = ""; // Host URL
+const char* secret = ""; // Secret to talk to the Host on.
+const char* deviceName = "DOOR-TEST"; // Device name. DOOR-DoorName or INT-InterlockName
+const char* devicePassword = ""; // Password for OTA on device.
+const char* deviceType = "door"; // either interlock or door
 int checkinRate = 60; // How many seconds between standard server checkins.
 int sessionCheckinRate = 60; // How many seconds between interlock session checkins.
 int contact = 0; // Set default switch state, 1 for doors that are permanantly powered/fail-open.
@@ -42,6 +42,7 @@ int lastReadSuccess = 5000; // Set last read success base state. Setting to 5 se
 uint32_t lastId = 0; // Set lastID to nothing.
 String sessionID = ""; // Set sessionID as null.
 char currentColor = 'b'; // Default interlock status led color is blue, let's start there.
+String curCacheHash = "";
 
 //Configure our objects.
 HTTPClient client;
@@ -364,10 +365,12 @@ void httpRoot() {
   message += "<h1> This is access control endpoint " + String(deviceName) + "</h1>";
   message += "Device is currently " + String(contact) + "<br />";
   message += "Last swiped tag was " + String(lastId)  + "<br />";
-  message += "<h2>Logs:</h2><div id='logs'></div>";
+  message += "Current cache hash is " + curCacheHash + "<br />";
   if (sessionID.length() > 0) {
     message += "Session ID is " + String(sessionID);
   }
+  message += "<h2>Logs:</h2><div id='logs'></div>";
+
   http.send(200, "text/html", message);
 }
 
@@ -523,9 +526,23 @@ void setup() {
   log("[SETUP] HTTP server started");
   heartbeat.attach(checkinRate, idleHeartBeatFlag);
   delay(10);
+
+  // Handle caching functions.
   if (!SPIFFS.begin()) {
     log("[STORAGE]Failed to mount file system");
     return;
+  } else {
+    File cacheFile = SPIFFS.open("/authorised.json", "r");
+    if (!cacheFile) {
+      log("[CACHE] Error opening authorised json file.");
+      return;
+    } else {
+      String cacheBuf = cacheFile.readStringUntil('\n');
+      cacheFile.close();
+      DynamicJsonBuffer jsonBuffer;
+      JsonObject&root = jsonBuffer.parseObject(cacheBuf.substring(cacheBuf.indexOf('{'), cacheBuf.length()));
+      curCacheHash = root["authorised_tags_hash"].as<String>();
+    }
   }
 }
 
