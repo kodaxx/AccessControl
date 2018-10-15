@@ -373,16 +373,14 @@ void flushSerial () {
 }
 
 void httpRoot() {
-  String message = "<html><head><script>var connection = new WebSocket('ws://'+location.hostname+':81/', ['arduino']);connection.onopen = function () {  connection.send('Connect ' + new Date()); }; connection.onerror = function (error) {    console.log('WebSocket Error ', error);};connection.onmessage = function (e) {  console.log('Server: ', e.data); var logObj = document.getElementById('logs'); logObj.insertAdjacentHTML('afterend', e.data + '</br>');;};</script></head>";
-  message += "<h1> This is access control endpoint " + String(deviceName) + "</h1>";
-  message += "Device is currently " + String(contact) + "<br />";
+  String message = "<html><head><script>var connection = new WebSocket('ws://'+location.hostname+':81/', ['arduino']);connection.onopen = function () {  connection.send('Connect ' + new Date()); }; connection.onerror = function (error) {    console.log('WebSocket Error ', error);};connection.onmessage = function (e) {  console.log('Server: ', e.data); var logObj = document.getElementById('logs'); logObj.insertAdjacentHTML('afterend', e.data + '</br>');;};</script><title>" + String(deviceName) + "</title></head>";
+  message += "<h1>" + String(deviceName) + "</h1>";
   message += "Last swiped tag was " + String(lastId)  + "<br />";
-  message += "Current cache hash is " + curCacheHash + "<br />";
-  if (sessionID.length() > 0) {
-    message += "Session ID is " + String(sessionID);
+  if (deviceType == "interlock" & contact == 1) {
+    message += "Interlock is Active, Session ID is " + String(sessionID) + "<br />";
   }
-  message += "<h2>Logs:</h2><div id='logs'></div>";
-
+  message += "Current cache hash is " + curCacheHash + " <br /> ";
+  message += "<h2>Logs: </h2> <div id ='logs'> </div> ";
   http.send(200, "text/html", message);
 }
 
