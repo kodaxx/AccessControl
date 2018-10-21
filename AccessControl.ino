@@ -163,7 +163,7 @@ void readTagInterlock() {
 
     if (checksum == tagBytes[4])
     {
-      Serial.print("[AUTH] Tag Number:" + cardId);
+      log("[AUTH] Tag Number:" + String(cardId));
       flushSerial();
       if (cardId != lastId) {
         if (!contact) {
@@ -229,8 +229,7 @@ void readTagDoor() {
 
     if (checksum == tagBytes[4])
     {
-      log("[AUTH] Tag Number:");
-      log(cardId);
+      log("[AUTH] Tag Number:" + String(cardId));
       flushSerial();
       authCard(cardId);
       lastReadSuccess = millis();
