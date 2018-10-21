@@ -3,7 +3,7 @@
 /*
     ESP8266 Access Control Firmware for HSBNE's Sonoff TH10 based control hardware.
     Written by nog3 August 2018
-    Contribs: pelrun (Sane rfid reading)
+    Contribs: pelrun (Sane rfid reading), jabeone (fix reset on some card reads bug)
 */
 
 // Include all the libraries we need for this.
@@ -229,7 +229,8 @@ void readTagDoor() {
 
     if (checksum == tagBytes[4])
     {
-      log("[AUTH] Tag Number:" + cardId);
+      log("[AUTH] Tag Number:");
+      log(cardId);
       flushSerial();
       authCard(cardId);
       lastReadSuccess = millis();
