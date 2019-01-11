@@ -42,7 +42,9 @@ int lastReadSuccess = 5000; // Set last read success base state. Setting to 5 se
 uint32_t lastId = 0; // Set lastID to nothing.
 String sessionID = ""; // Set sessionID as null.
 char currentColor = 'b'; // Default interlock status led color is blue, let's start there.
-String curCacheHash = "";
+String curCacheHash = ""; // Current cache hash, pulled from cache file.
+int useLocal = 0; // Whether or not to use local cache, set by heartbeat failures or manually.
+int tagsArray[200]; // Where the int array of tags is loaded to from cache on heartbeat fail.
 
 //Configure our objects.
 HTTPClient client;
@@ -395,7 +397,7 @@ void authCard(long tagid) {
   int httpCode = client.GET();
   // httpCode will be negative on error
   if (httpCode > 0) {
-    // log("[AUTH] Code: " + String(httpCode));
+    log("[AUTH] Code: " + String(httpCode));
 
     // Checkin succeeded.
     if (httpCode == HTTP_CODE_OK) {
@@ -524,6 +526,12 @@ void setup() {
   });
   http.on("/printcache", []() {
     printCache();
+  });
+  http.on("/loadtags", []() {
+    loadTags();
+  });
+  http.on("/printtags", []() {
+    printTags();
   });
   http.on("/end", []() {
     if (deviceType == "interlock") {
@@ -673,6 +681,38 @@ void printCache() {
   String message = "<html><head><title>" + String(deviceName) + " Cache</title></head>";
   message += "<h2>Cache:</h2>";
   message += cacheContent;
+  http.send(200, "text/html", message);
+}
+
+void loadTags() {
+  String cacheContent;
+  File cacheFile = SPIFFS.open("/authorised.json", "r");
+  if (!cacheFile) {
+    cacheContent = "Error opening authorised json file.";
+  } else {
+    cacheContent = cacheFile.readStringUntil('\n');
+  }
+  cacheFile.close();
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject&root = jsonBuffer.parseObject(cacheContent.substring(cacheContent.indexOf('{'), cacheContent.length()));
+  JsonArray& authorised_tags = root["authorised_tags"];
+  authorised_tags.copyTo(tagsArray);
+}
+
+void printTags() {
+  String message = "<html><head><title>" + String(deviceName) + " Tags</title></head>";
+  message += "<h2>Tags:</h2>";
+  if (tagsArray[0] > 0) {
+    for (int i = 0; i < sizeof(tagsArray) / sizeof(int); i++) {
+      if (tagsArray[i] > 0) {
+        message += String(tagsArray[i]) + "<br />";
+
+      }
+    }
+  } else {
+    message+= "No tag loaded in slot 0, assuming none loaded.";
+  }
+
   http.send(200, "text/html", message);
 }
 
