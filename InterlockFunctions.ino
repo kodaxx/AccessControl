@@ -38,73 +38,45 @@ void ICACHE_RAM_ATTR checkInSession(String sessionGUID, uint32_t cardNo) {
 void ICACHE_RAM_ATTR activeHeartBeatFlag() {
   triggerFlag = 2;
 }
-void readTag() {
-  char tagBytes[6];
-
-  //  while (!Serial.available()) { delay(10); }
-
-  if (Serial.readBytes(tagBytes, 5) == 5)
-  {
-    uint8_t checksum = 0;
-    uint32_t cardId = 0;
-
-    //tagBytes[6] = 0;
-
-    //    Serial.println("Raw Tag:");
-    for (int i = 0; i < 4; i++)
-    {
-      checksum ^= tagBytes[i];
-      cardId = cardId << 8 | tagBytes[i];
-      Serial.println(tagBytes[i], HEX);
-    }
-
-    if (checksum == tagBytes[4])
-    {
-      log("[AUTH] Tag Number:" + String(cardId));
-      flushSerial();
-      if (cardId != lastId) {
-        if (!contact) {
-          log("[AUTH] Tag is new, checking authentication.");
-          statusLight('w');
-          Serial.println(millis());
-          authCard(cardId);
-        } else {
-          log("[AUTH] This is someone else disabling the interlock.");
-          // Turn off contact, detach timer and heartbeat one last time.
-          toggleContact();
-          if ( useLocal == 0 ) {
-            heartbeatSession.detach();
-            checkInSession(sessionID, cardId);
-          }
-          // Update the user that swipe timeout has begun.
-          statusLight('w');
-          lastId = 0;
-          // Clear temp globals.
-          sessionID = "";
-
-        }
-      } else {
-        log("[AUTH] This is the last user disabling the interlock.");
-        // Turn off contact, detach timer and heartbeat one last time.
-        toggleContact();
-        if ( useLocal == 0 ) {
-          heartbeatSession.detach();
-          checkInSession(sessionID, cardId);
-        }
-        // Update the user that swipe timeout has begun.
-        statusLight('w');
-        lastId = 0;
-        // Clear temp globals.
-        sessionID = "";
-      }
-
-      lastReadSuccess = millis();
+void handleCard(long cardId) {
+  // This function handles the handling of the current interlock state vs RFID read.
+  if (cardId != lastId) {
+    if (!contact) {
+      log("[AUTH] Tag is new, checking authentication.");
+      statusLight('w');
+      Serial.println(millis());
+      authCard(cardId);
     } else {
-      flushSerial();
-      log("incomplete or corrupted RFID read, sorry. ");
+      log("[AUTH] This is someone else disabling the interlock.");
+      // Turn off contact, detach timer and heartbeat one last time.
+      toggleContact();
+      if ( useLocal == 0 ) {
+        heartbeatSession.detach();
+        checkInSession(sessionID, cardId);
+      }
+      // Update the user that swipe timeout has begun.
+      statusLight('w');
+      lastId = 0;
+      // Clear temp globals.
+      sessionID = "";
     }
+  } else {
+    log("[AUTH] This is the last user disabling the interlock.");
+    // Turn off contact, detach timer and heartbeat one last time.
+    toggleContact();
+    if ( useLocal == 0 ) {
+      heartbeatSession.detach();
+      checkInSession(sessionID, cardId);
+    }
+    // Update the user that swipe timeout has begun.
+    statusLight('w');
+    lastId = 0;
+    // Clear temp globals.
+    sessionID = "";
   }
+  lastReadSuccess = millis();
 }
+
 void statusLight(char color) {
   if (currentColor == color) {
     return;
@@ -196,6 +168,8 @@ void authCard(long tagid) {
           statusLight('r');
           delay(1000);
         }
+        // Clear the json object now.
+        doc.clear();
 
       }
     } else {
@@ -272,6 +246,7 @@ void checkStateMachine() {
           break;
         } else {
           log("[CACHE] Heartbeat still failed.  ");
+          triggerFlag = 0;
           break;
         }
       }

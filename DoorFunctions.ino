@@ -1,6 +1,10 @@
 // Door Specific Functions go here.
 #ifdef DOOR
-void authCard(long tagid) {
+
+void handleCard(long tagId) {
+  authcard(tagId);
+}
+void authCard(long tagId) {
   if (useLocal != 1) {
     log("[AUTH] Server auth check begin");
     String url = String(host) + "/api/" + deviceType + "/check/" + String(tagid) + "/?secret=" + String(secret);
@@ -30,6 +34,7 @@ void authCard(long tagid) {
           log("[AUTH] Access not granted.");
           delay(1000);
         }
+        // Clear the json object now.
         doc.clear();
       }
     } else {
@@ -63,7 +68,7 @@ void authCard(long tagid) {
   }
 }
 
-void readTag() {
+void handleTag() {
   char tagBytes[6];
 
   //  while (!Serial.available()) { delay(10); }
@@ -150,6 +155,7 @@ void checkStateMachine() {
           break;
         } else {
           log("[CACHE] Heartbeat still failed.  ");
+          triggerFlag = 0;
           break;
         }
       }

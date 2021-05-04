@@ -1,6 +1,7 @@
 /*
     ESP8266 Access Control Firmware for HSBNE's Sonoff TH10 based control hardware.
     Written by nog3 August 2018
+    Refactored by nog3 Feb 2021
     Contribs: pelrun (Sane rfid reading), jabeone (fix reset on some card reads bug)
     Compiling: Select ITEAD Sonoff, ITEAD Sonoff TH, 1MB (FS 64kb OTA ~470kb), V2 Lower Memory (no features), Basic SSL Ciphers.
 */
@@ -10,10 +11,11 @@
 //#define KEYLOCKER
 
 // Uncomment for RFID reader types.
-#define OLD
-//#define RF125PS
+//#define OLD
+#define RF125PS
 
-// Uncomment to enable serial messaging debug. 
+// Uncomment to enable serial messaging debug.
+#define SERIALDEBUG
 
 // Include all the libraries we need for this.
 #include <ESP8266HTTPClient.h>
@@ -28,13 +30,12 @@
 #include <WiFiClientSecureBearSSL.h>
 // Editable config values. Example given below but secrets should be stored outside Git's prying eyes.
 /* const char* ssid = ""; // Wifi SSID
-const char* password = ""; // Wifi Password
-const char* host = ""; // Host URL
-const char* secret = ""; // Secret to talk to the Host on.
-const char* deviceName = ""; // Device name. DOOR-DoorName or INT-InterlockName
-const char* devicePassword = ""; // Password for OTA on device.
+  const char* password = ""; // Wifi Password
+  const char* host = ""; // Host URL
+  const char* secret = ""; // Secret to talk to the Host on.
+  const char* deviceName = ""; // Device name. DOOR-DoorName or INT-InterlockName
+  const char* devicePassword = ""; // Password for OTA on device.
 */
-const char* deviceType = "interlock"; // either interlock or door
 uint8_t checkinRate = 60; // How many seconds between standard server checkins.
 uint8_t sessionCheckinRate = 60; // How many seconds between interlock session checkins.
 uint8_t contact = 0; // Set default switch state, 1 for doors that are permanantly powered/fail-open.
@@ -44,7 +45,6 @@ uint16_t rfidSquelchTime = 5000; // How long after checking a card with the serv
 const int switchPin = 12; // This is the pin the relay is on in the TH10 board.
 const int ledPin = 13; // This is an onboard LED, just to show we're alive.
 const int statePin = 14; // This is the pin exposed on the TRRS plug on the sonoff, used for LED on interlocks.
-
 // Initialise our base state vars.
 uint8_t triggerFlag = 0; //State trigger for heartbeats and other useful blocking things.
 uint32_t lastReadSuccess = 5000; // Set last read success base state. Setting to 5 seconds to make sure on boot it's going to ignore initial reads.
@@ -85,6 +85,7 @@ void ICACHE_RAM_ATTR checkIn() {
   delay(10);
   String url = String(host) + "/api/" + deviceType + "/checkin/?secret=" + String(secret);
   log("[CHECKIN] Get:" + String(url));
+  delay(10);
   std::unique_ptr<BearSSL::WiFiClientSecure>SSLclient(new BearSSL::WiFiClientSecure);
   SSLclient->setInsecure();
   client.begin(*SSLclient, url);
@@ -92,6 +93,7 @@ void ICACHE_RAM_ATTR checkIn() {
   // Start http request.
   int httpCode = client.GET();
   // httpCode will be negative on error
+  delay(10);
   if (httpCode > 0) {
     // Serial.println("[CHECKIN] Code: " + String(httpCode));
     // Checkin succeeded.
@@ -158,18 +160,7 @@ void startWifi () {
   delay(10);
 }
 
-void flushSerial () {
-  int flushCount = 0;
-  while (  Serial.available() ) {
-    Serial.read();  // flush any remaining bytes.
-    flushCount++;
-    // Serial.println("flushed a byte");
-  }
-  if (flushCount > 0) {
-    log("[DEBUG] Flushed " + String(flushCount) + " bytes.");
-    flushCount = 0;
-  }
-}
+
 
 void httpRoot() {
   String message = "<html><head><script>var connection = new WebSocket('ws://'+location.hostname+':81/', ['arduino']);connection.onopen = function () {  connection.send('Connect ' + new Date()); }; connection.onerror = function (error) {    console.log('WebSocket Error ', error);};connection.onmessage = function (e) {  console.log('Server: ', e.data); var logObj = document.getElementById('logs'); logObj.insertAdjacentHTML('afterend', e.data + '</br>');;};</script><title>" + String(deviceName) + "</title></head>";
