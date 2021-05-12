@@ -6,13 +6,14 @@
     Compiling: Select ITEAD Sonoff, ITEAD Sonoff TH, 1MB (FS 64kb OTA ~470kb), V2 Lower Memory (no features), Basic SSL Ciphers.
 */
 // Uncomment the relevant device type for this device.
-//#define DOOR
-#define INTERLOCK
+#define DOOR
+//#define INTERLOCK
 //#define KEYLOCKER
 
 // Uncomment for RFID reader types.
 //#define OLD
 #define RF125PS
+//#define RC522
 
 // Uncomment to enable serial messaging debug.
 #define SERIALDEBUG
@@ -26,16 +27,21 @@
 #include <Adafruit_NeoPixel.h>
 #include <ArduinoJson.h>
 #include <Ticker.h>
+#include <WS2812FX.h>
 #include <WebSocketsServer.h>
 #include <WiFiClientSecureBearSSL.h>
 // Editable config values. Example given below but secrets should be stored outside Git's prying eyes.
-/* const char* ssid = ""; // Wifi SSID
+/*
+  const char* ssid = ""; // Wifi SSID
   const char* password = ""; // Wifi Password
   const char* host = ""; // Host URL
   const char* secret = ""; // Secret to talk to the Host on.
   const char* deviceName = ""; // Device name. DOOR-DoorName or INT-InterlockName
   const char* devicePassword = ""; // Password for OTA on device.
+  const char* deviceType = ""; // Device type ("door" or "interlock") - will handle this more eloquently in the future
+  const char* doorID = ""; // only needed if not using door IP - this is a placeholder for handling this in the future
 */
+
 uint8_t checkinRate = 60; // How many seconds between standard server checkins.
 uint8_t sessionCheckinRate = 60; // How many seconds between interlock session checkins.
 uint8_t contact = 0; // Set default switch state, 1 for doors that are permanantly powered/fail-open.
@@ -58,6 +64,7 @@ int tagsArray[200]; // Where the int array of tags is loaded to from cache on he
 
 //Configure our objects.
 HTTPClient client;
+WS2812FX ws2812fx = WS2812FX(1, statePin, NEO_RGB + NEO_KHZ800);
 Adafruit_NeoPixel pixel(1, statePin, NEO_GRB + NEO_KHZ800);
 ESP8266WebServer http(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
@@ -148,6 +155,7 @@ void startWifi () {
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(50);
+    ws2812fx.service();
   }
 #ifdef SERIALDEBUG
   Serial.println("[WIFI] WiFi connected");
@@ -196,6 +204,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length
 void setup() {
   Serial.begin(9600);
   Serial.println("[SETUP] Serial Started");
+  ws2812fx.init();
+  ws2812fx.start();
   pixel.begin();
   statusLight('p');
   pinMode(ledPin, OUTPUT);
@@ -223,6 +233,7 @@ void setup() {
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    ws2812fx.service();
     yield();
   });
   ArduinoOTA.onError([](ota_error_t error) {
@@ -429,11 +440,54 @@ void clearTags() {
   tagsLoaded = 0;
 }
 
-
-
-
-
-
+void statusLight(char color) {
+  if (deviceType == "door") {
+    return;
+  }
+  if (currentColor == color) {
+    return;
+  } else {
+    switch (color) {
+      case 'r':
+        {
+          ws2812fx.setSegment(0,  0,  0, FX_MODE_STATIC, 0xFF0000, 1000, false);
+          break;
+        }
+      case 'g':
+        {
+          ws2812fx.setSegment(0,  0,  0, FX_MODE_STATIC, 0x00FF00, 1000, false);
+          break;
+        }
+      case 'b':
+        {
+          ws2812fx.setSegment(0,  0,  0, FX_MODE_STATIC, 0x0000FF, 1000, false);
+          break;
+        }
+      case 'y':
+        {
+          ws2812fx.setSegment(0,  0,  0, FX_MODE_STROBE, 0xFF6400, 250, false);
+          break;
+        }
+      case 'p':
+        {
+          ws2812fx.setSegment(0,  0,  0, FX_MODE_BREATH, 0x800080, 250, false);
+          break;
+        }
+      case 'w':
+        {
+          ws2812fx.setSegment(0,  0,  0, FX_MODE_BREATH, 0x0000FF, 250, false);
+          break;
+        }
+      case 'e':
+        {
+          ws2812fx.setSegment(0,  0,  0, FX_MODE_BREATH, 0x00FF00, 250, false);
+          break;
+        }
+    }
+    currentColor = color;
+    ws2812fx.service();
+  }
+}
 
 void loop() {
   delay(10);
@@ -445,6 +499,8 @@ void loop() {
   ArduinoOTA.handle();
   http.handleClient();
   webSocket.loop();
+
+  ws2812fx.service();
 
   // If it's been more than rfidSquelchTime since we last read a card, then try to read a card.
   if (millis() > (lastReadSuccess + rfidSquelchTime)) {

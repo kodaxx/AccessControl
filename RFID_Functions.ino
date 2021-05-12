@@ -48,7 +48,36 @@ void readTag() {
     // STX Byte found, dump the rest out until ETX byte. Yes this is blocking but we need to dedicate to reading now.
     Serial.readBytesUntil(endChar, cardBytes, 11);
     flushSerial();
-    String cardSt fring = String(cardBytes);
+    String cardString = String(cardBytes);
+
+    log("[AUTH] Card String:" + cardString);
+    cardString = cardString.substring(4,10);
+    cardId = strtol(cardString.c_str(), &endptr, 16);
+    log("[AUTH] Card ID:" + String(cardId));
+    handleCard(cardId);
+  } else {
+    flushSerial();
+    log("[AUTH] incomplete or corrupted RFID read, sorry. ");
+  }
+}
+
+#endif
+
+#ifdef RC522
+void readTag() {
+  char startChar = '.';
+  char endChar = '.';
+  char cardBytes[10];
+  char *endptr;
+  uint32_t cardId;
+  
+
+  if (Serial.read() == startChar) {
+    log("[AUTH] Card start byte found.");
+    // STX Byte found, dump the rest out until ETX byte. Yes this is blocking but we need to dedicate to reading now.
+    Serial.readBytesUntil(endChar, cardBytes, 11);
+    flushSerial();
+    String cardString = String(cardBytes);
 
     log("[AUTH] Card String:" + cardString);
     cardString = cardString.substring(4,10);

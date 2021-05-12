@@ -1,13 +1,15 @@
 // Door Specific Functions go here.
 #ifdef DOOR
 
+// const char* doorId = "1"; // set to door ID
+
 void handleCard(long tagId) {
-  authcard(tagId);
+  authCard(tagId);
 }
 void authCard(long tagId) {
   if (useLocal != 1) {
     log("[AUTH] Server auth check begin");
-    String url = String(host) + "/api/" + deviceType + "/check/" + String(tagid) + "/?secret=" + String(secret);
+    String url = String(host) + "/api/" + deviceType + "/check/" + String(tagId) + "/?secret=" + String(secret);
     log("[AUTH] Get:" + String(url));
     std::unique_ptr<BearSSL::WiFiClientSecure>SSLclient(new BearSSL::WiFiClientSecure);
     SSLclient->setInsecure();
@@ -29,7 +31,7 @@ void authCard(long tagId) {
         if ( doc["access"].as<String>() == "true" ) {
           log("[AUTH] Access granted.");
           pulseContact();
-          lastId = tagid;
+          lastId = tagId;
         } else {
           log("[AUTH] Access not granted.");
           delay(1000);
@@ -47,11 +49,11 @@ void authCard(long tagId) {
     if (tagsArray[0] > 0) {
       log("[AUTH] Checking local cache.");
       for (uint8_t i = 0; i < sizeof(tagsArray); i++) {
-        if (tagsArray[i] == tagid) {
+        if (tagsArray[i] == tagId) {
           log("[AUTH] Cache Access granted.");
           sessionID = "Cache in use";
           pulseContact();
-          lastId = tagid;
+          lastId = tagId;
           break;
         } else {
           if (tagsArray[i] < 1) {
